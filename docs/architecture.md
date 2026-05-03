@@ -127,10 +127,12 @@ The `Objective` trait has four required methods:
 - `eval_metric` — the scalar training metric reported after each round
 - `metric_name` — short string for display ("rmse", "binary_logloss", "pinball")
 
-And one optional override:
+And two optional overrides:
 
 - `needs_renew_leaf_output` — whether leaf outputs should be replaced after the tree
   structure is fixed (used only by quantile regression, described below)
+- `alpha` — returns `Some(α)` for quantile objectives, `None` for all others; used by
+  `renew_leaf_outputs_quantile` to avoid inferring α from the gradient values
 
 **L2 regression**: gradients are residuals (`score − label`), hessians are 1. Initial score
 is the mean label. This is the simplest case and the one used to validate the histogram
@@ -150,8 +152,8 @@ The leaf *outputs*, however, must be the α-quantile of the residuals in each le
 standard `−G/(H+λ)` formula (which would produce the mean). After each tree is grown,
 `renew_leaf_outputs_quantile` traverses the dataset, assigns each sample to its leaf, collects
 the residuals `(label − score)` for that leaf, sorts them, and takes the value at position
-`floor((n−1) × α)`. This matches LightGBM's `RenewTreeOutput` / `IsRenewTreeOutput`
-mechanism in `regression_objective.hpp`.
+`floor(n × α)` (clamped to `n−1`). This matches LightGBM's `RenewTreeOutput` /
+`IsRenewTreeOutput` mechanism in `regression_objective.hpp`.
 
 The initial score for quantile regression is the α-quantile of the training labels, consistent
 with the same logic.
@@ -178,14 +180,21 @@ Rayon is used in two places:
 - **Histogram construction**: feature histograms for a leaf are built in parallel across
   features (`par_iter_mut` over the histogram array). Each feature's histogram is independent.
 
-- **Split candidate search**: for each active leaf, the best split across all features is found
-  in parallel using a `par_iter` flat-map over (leaf, feature) pairs. Results are reduced to a
-  per-leaf best candidate.
+- **Split candidate search**: active leaves are processed in parallel (`par_iter`). Within
+  each leaf, features are scanned serially to find the best split, yielding one
+  `Option<(feature, SplitInfo)>` per leaf. The results are written into the `best_per_leaf`
+  table (indexed by leaf ID) in a serial post-pass.
 
 These two parallel regions cover the two innermost loops of the training algorithm and
 represent the bulk of wall-clock time.
 
 The number of threads is controlled by `Config::num_threads` (0 = use all available cores).
+
+Note: the current parallelism strategy — splitting work across *features* rather than *rows*
+— is the primary reason the implementation is slower than LightGBM on large datasets.
+LightGBM partitions rows across threads and merges thread-local partial histograms, reading
+each sample once regardless of the number of features. See `docs/performance.md` for a full
+discussion.
 
 
 ## Out of scope
