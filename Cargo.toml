@@ -19,6 +19,14 @@ path = "examples/california.rs"
 name = "bike"
 path = "examples/bike.rs"
 
+[[example]]
+name = "fetch_covertype"
+path = "examples/fetch_covertype.rs"
+
+[[example]]
+name = "covertype"
+path = "examples/covertype.rs"
+
 [dependencies]
 rayon = "1"
 thiserror = "1"
