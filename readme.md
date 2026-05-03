@@ -49,9 +49,13 @@ Example with all output:
 cargo run --example california --release -- --num_trees=100 --rmse --importance
 ```
 
-## Architecture
+## Benchmarks
 
-see `docs/architecture.md`
+Benchmarks of this implementation against LightGBM can be found in dir. `docs`.
+
+## Architecture and performance
+
+see `architecture.md` and `performance.md` in dir. `docs`.
 
 
 ### end
