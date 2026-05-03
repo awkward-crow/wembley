@@ -206,26 +206,21 @@ impl HistogramPool {
     /// All three slot indices must be distinct.
     pub fn subtract_slots(&mut self, parent: usize, smaller: usize, larger: usize) {
         debug_assert!(parent != smaller && parent != larger && smaller != larger);
-        // Clone the two source arrays to avoid borrow conflicts.
-        // Allocation is bounded by total histogram size which is small.
-        let parent_data: Vec<Vec<f64>> =
-            self.slots[parent].iter().map(|h| h.data.clone()).collect();
-        let smaller_data: Vec<Vec<f64>> =
-            self.slots[smaller].iter().map(|h| h.data.clone()).collect();
-        let larger_hists = &mut self.slots[larger];
-        for f in 0..larger_hists.len() {
-            let ld = &mut larger_hists[f].data;
-            let pd = &parent_data[f];
-            let sd = &smaller_data[f];
-            for i in 0..ld.len() {
-                ld[i] = pd[i] - sd[i];
+        let ptr = self.slots.as_mut_ptr();
+        // SAFETY: all three indices are distinct (asserted above) and in-bounds.
+        unsafe {
+            let parent_hists  = &*ptr.add(parent);
+            let smaller_hists = &*ptr.add(smaller);
+            let larger_hists  = &mut *ptr.add(larger);
+            for f in 0..larger_hists.len() {
+                let ld = &mut larger_hists[f].data;
+                let pd = &parent_hists[f].data;
+                let sd = &smaller_hists[f].data;
+                for i in 0..ld.len() {
+                    ld[i] = pd[i] - sd[i];
+                }
             }
         }
-    }
-
-    /// Expose raw pointer for unsafe multi-slot access (used in hot path).
-    pub fn get_raw_ptr(&mut self) -> *mut Vec<Vec<Histogram>> {
-        &mut self.slots
     }
 }
 

@@ -64,4 +64,8 @@ impl Objective for QuantileRegression {
     fn needs_renew_leaf_output(&self) -> bool {
         true
     }
+
+    fn alpha(&self) -> Option<f64> {
+        Some(self.alpha)
+    }
 }

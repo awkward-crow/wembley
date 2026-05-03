@@ -31,4 +31,9 @@ pub trait Objective: Send + Sync {
     fn needs_renew_leaf_output(&self) -> bool {
         false
     }
+
+    /// Quantile level, if this is a quantile objective. `None` for all others.
+    fn alpha(&self) -> Option<f64> {
+        None
+    }
 }

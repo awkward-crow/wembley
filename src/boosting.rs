@@ -173,29 +173,23 @@ fn train_one_tree(
     for _ in 0..(config.num_leaves - 1) {
         if active.is_empty() { break; }
 
-        // Find best split per leaf (parallel over leaves × features)
-        let candidates: Vec<(usize, usize, crate::histogram::SplitInfo)> = active
-            .par_iter()
-            .flat_map(|&leaf| {
-                let st = states[leaf].as_ref().unwrap();
-                let hists = pool.get(st.hist_slot);
-                (0..nf).map(|f| {
-                    let sp = find_best_split(&hists[f], st.sum_grad, st.sum_hess, st.count, config);
-                    (leaf, f, sp)
-                }).collect::<Vec<_>>()
-            })
-            .collect();
-
-        // Best split per leaf
+        // Find best split per leaf (parallel over leaves, serial over features within each)
         let mut best_per_leaf: Vec<Option<(usize, crate::histogram::SplitInfo)>> =
             vec![None; pool_size];
-        for (leaf, feat, sp) in candidates {
-            if !sp.gain.is_finite() || sp.gain <= 0.0 { continue; }
-            match &best_per_leaf[leaf] {
-                None => best_per_leaf[leaf] = Some((feat, sp)),
-                Some((_, prev)) if sp.gain > prev.gain => best_per_leaf[leaf] = Some((feat, sp)),
-                _ => {}
-            }
+        let leaf_bests: Vec<(usize, Option<(usize, crate::histogram::SplitInfo)>)> = active
+            .par_iter()
+            .map(|&leaf| {
+                let st = states[leaf].as_ref().unwrap();
+                let hists = pool.get(st.hist_slot);
+                let best = (0..nf)
+                    .map(|f| (f, find_best_split(&hists[f], st.sum_grad, st.sum_hess, st.count, config)))
+                    .filter(|(_, sp)| sp.gain.is_finite() && sp.gain > 0.0)
+                    .max_by(|(_, a), (_, b)| a.gain.partial_cmp(&b.gain).unwrap_or(std::cmp::Ordering::Equal));
+                (leaf, best)
+            })
+            .collect();
+        for (leaf, best) in leaf_bests {
+            best_per_leaf[leaf] = best;
         }
 
         // Leaf-wise: pick leaf with highest gain
@@ -305,25 +299,10 @@ fn renew_leaf_outputs_quantile(
     scores: &[f64],
     objective: &dyn Objective,
 ) {
+    let alpha = objective.alpha().expect("renew_leaf_outputs_quantile called on non-quantile objective");
     let n = dataset.num_data;
-    // Infer alpha from gradients: when score >= label, grad = 1 - alpha.
-    let mut tmp_grads = vec![0.0f32; n];
-    let mut tmp_hess  = vec![1.0f32; n];
-    objective.gradients_hessians(scores, &dataset.labels, &mut tmp_grads, &mut tmp_hess);
 
-    let alpha = {
-        let mut a = 0.5f64;
-        for i in 0..n {
-            let delta = scores[i] - dataset.labels[i] as f64;
-            if delta.abs() > 1e-10 {
-                a = if delta >= 0.0 { 1.0 - tmp_grads[i] as f64 } else { -tmp_grads[i] as f64 };
-                break;
-            }
-        }
-        a
-    };
-
-    // Assign samples to leaves via traversal
+    // Assign samples to leaves via traversal, collect residuals per leaf.
     let nf = dataset.num_features;
     let mut leaf_residuals: Vec<Vec<f64>> = vec![Vec::new(); tree.num_leaves];
     let mut bins = vec![0u8; nf];
@@ -336,7 +315,8 @@ fn renew_leaf_outputs_quantile(
     for (leaf, residuals) in leaf_residuals.iter_mut().enumerate() {
         if residuals.is_empty() { continue; }
         residuals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let pos = ((residuals.len() - 1) as f64 * alpha) as usize;
+        // Match LightGBM: floor(alpha * n), clamped to valid range.
+        let pos = ((alpha * residuals.len() as f64) as usize).min(residuals.len() - 1);
         tree.set_leaf_value(leaf, residuals[pos]);
     }
 }
