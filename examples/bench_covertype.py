@@ -1,8 +1,10 @@
 """
-LightGBM benchmark on California Housing — mirrors examples/california.rs exactly.
+LightGBM benchmark on UCI Cover Type (binary: class 1 vs class 2) —
+mirrors examples/covertype.rs.
 
-Run:  python examples/bench_california.py [--num_trees=100] [--num_leaves=31] [--rmse] [--importance]
-Data: python examples/fetch_california.py   (first time only)
+Run:  python examples/bench_covertype.py [--num_trees=100] [--num_leaves=31]
+                                          [--logloss] [--importance]
+Data: cargo run --example fetch_covertype   (first time only)
 """
 import argparse
 import math
@@ -13,34 +15,35 @@ import numpy as np
 import pandas as pd
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--num_trees",   type=int,  default=50)
-parser.add_argument("--num_leaves",  type=int,  default=31)
-parser.add_argument("--rmse",        action="store_true")
-parser.add_argument("--importance",  action="store_true")
+parser.add_argument("--num_trees",  type=int,  default=100)
+parser.add_argument("--num_leaves", type=int,  default=31)
+parser.add_argument("--logloss",    action="store_true")
+parser.add_argument("--importance", action="store_true")
 args = parser.parse_args()
 
 # ── Load CSV ───────────────────────────────────────────────────────────────────
-path = Path("data/california_housing.csv")
+path = Path("data/covtype_binary.csv")
 if not path.exists():
-    raise SystemExit("cannot open data/california_housing.csv — run `python examples/fetch_california.py` first")
+    raise SystemExit("cannot open data/covtype_binary.csv — run `cargo run --example fetch_covertype` first")
 
 df = pd.read_csv(path)
-print(f"{len(df)} samples, {len(df.columns) - 1} features")
+feature_cols = [c for c in df.columns if c != "label"]
+X = df[feature_cols].values
+y = df["label"].values.astype(float)
 
-X = df.iloc[:, :-1].values
-y = df.iloc[:, -1].values
+print(f"{len(df)} samples, {len(feature_cols)} features")
 
 # ── Train / test split (80 / 20) — same as Rust ───────────────────────────────
-split = int(len(df) * 0.8)
+split = int(len(X) * 0.8)
 X_train, X_test = X[:split], X[split:]
 y_train, y_test = y[:split], y[split:]
 
-train_ds = lgb.Dataset(X_train, label=y_train, feature_name=list(df.columns[:-1]), free_raw_data=False)
+train_ds = lgb.Dataset(X_train, label=y_train, feature_name=feature_cols, free_raw_data=False)
 
 # ── Train ──────────────────────────────────────────────────────────────────────
 params = {
-    "objective":        "regression",
-    "metric":           "rmse",
+    "objective":        "binary",
+    "metric":           "binary_logloss",
     "num_leaves":       args.num_leaves,
     "min_data_in_leaf": 20,
     "learning_rate":    0.1,
@@ -48,11 +51,10 @@ params = {
     "verbose":          -1,
 }
 
-rmse_per_iter = []
+logloss_log = []
 
 def on_iteration(env):
-    rmse = env.evaluation_result_list[0][2]
-    rmse_per_iter.append(rmse)
+    logloss_log.append(env.evaluation_result_list[0][2])
 
 model = lgb.train(
     params,
@@ -63,29 +65,30 @@ model = lgb.train(
 )
 
 # ── Evaluation ─────────────────────────────────────────────────────────────────
-preds = model.predict(X_test)
-test_rmse = math.sqrt(np.mean((preds - y_test) ** 2))
-train_rmse_final = rmse_per_iter[-1] if rmse_per_iter else 0.0
+preds_prob  = model.predict(X_test)
+train_logloss = logloss_log[-1] if logloss_log else 0.0
+
+p = np.clip(preds_prob, 1e-15, 1 - 1e-15)
+test_logloss = -np.mean(y_test * np.log(p) + (1 - y_test) * np.log(1 - p))
+test_acc     = np.mean((preds_prob >= 0.5) == y_test) * 100
 
 print(
     f"num_trees={args.num_trees}  num_leaves={args.num_leaves}"
-    f"  train_rmse={train_rmse_final * 100_000:.0f}"
-    f"  test_rmse={test_rmse * 100_000:.0f}"
+    f"  train_logloss={train_logloss:.4f}  test_logloss={test_logloss:.4f}"
+    f"  test_acc={test_acc:.2f}%"
 )
 
-# ── Per-iteration RMSE ─────────────────────────────────────────────────────────
-if args.rmse:
-    print(f"\n{'iter':<6}  {'rmse'}")
-    print("-" * 18)
-    for i, rmse in enumerate(rmse_per_iter, 1):
-        print(f"{i:<6}  {rmse * 100_000:.0f}")
+# ── Per-iteration log-loss ─────────────────────────────────────────────────────
+if args.logloss:
+    print(f"\n{'iter':<6}  train_logloss")
+    print("-" * 24)
+    for i, v in enumerate(logloss_log, 1):
+        print(f"{i:<6}  {v:.4f}")
 
 # ── Feature importance (gain) ──────────────────────────────────────────────────
 if args.importance:
     importance = model.feature_importance(importance_type="gain")
-    names = model.feature_name()
-    ranked = sorted(zip(importance, names), reverse=True)
-
+    ranked = sorted(zip(importance, feature_cols), reverse=True)
     print("\nFeature importance (gain):")
     print(f"{'rank':<6}  {'gain':<14}  feature")
     print("-" * 38)
