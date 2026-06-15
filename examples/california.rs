@@ -1,6 +1,6 @@
 /// California Housing — L2 regression with per-iteration RMSE and feature importance.
 ///
-/// Run:  cargo run --example california --release [-- --num_trees=50 --num_leaves=31 --rmse --importance]
+/// Run:  cargo run --example california --release [-- --num_trees=50 --num_leaves=31 --error --importance]
 /// Data: cargo run --example fetch_california   (first time only)
 use csv::ReaderBuilder;
 use lgbm::{
@@ -22,7 +22,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let num_trees:  usize = parse_arg(&args, "num_trees",  50);
     let num_leaves: usize = parse_arg(&args, "num_leaves", 31);
-    let show_rmse:             bool = args.iter().any(|a| a == "--rmse");
+    let show_error:            bool = args.iter().any(|a| a == "--error");
     let show_importance:       bool = args.iter().any(|a| a == "--importance");
     let show_importance_trees: bool = args.iter().any(|a| a == "--importance-by-tree");
 
@@ -91,7 +91,7 @@ fn main() {
         test_rmse * 100_000.0,
     );
 
-    if show_rmse {
+    if show_error {
         println!("\n{:<6}  {}", "iter", "rmse");
         println!("{}", "-".repeat(18));
         for (iter, rmse) in rmse_log.iter().enumerate() {

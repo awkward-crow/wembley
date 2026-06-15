@@ -3,7 +3,7 @@ LightGBM benchmark on UCI Bike Sharing (daily) — mirrors examples/bike.rs.
 Runs quantile regression at α=0.9 / 0.5 (median) / 0.1.
 
 Run:  python examples/bench_bike.py [--num_trees=200] [--num_leaves=15]
-                                     [--shuffle] [--rmse] [--importance]
+                                     [--shuffle] [--error] [--importance]
 Data: cargo run --example fetch_bike   (first time only)
 """
 import argparse
@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--num_trees",  type=int,  default=200)
 parser.add_argument("--num_leaves", type=int,  default=15)
 parser.add_argument("--shuffle",    action="store_true")
-parser.add_argument("--rmse",       action="store_true")
+parser.add_argument("--error",      action="store_true")
 parser.add_argument("--importance", action="store_true")
 args = parser.parse_args()
 
@@ -83,7 +83,7 @@ for alpha in (0.9, 0.5, 0.1):
         f"  coverage={coverage:.1f}%  (target {alpha*100:.0f}%)"
     )
 
-    if args.rmse:
+    if args.error:
         print(f"\n{'iter':<6}  pinball(α={alpha:.1f})")
         print("-" * 26)
         for i, v in enumerate(q_log, 1):

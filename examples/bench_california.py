@@ -1,7 +1,7 @@
 """
 LightGBM benchmark on California Housing — mirrors examples/california.rs exactly.
 
-Run:  python examples/bench_california.py [--num_trees=100] [--num_leaves=31] [--rmse] [--importance]
+Run:  python examples/bench_california.py [--num_trees=100] [--num_leaves=31] [--error] [--importance]
 Data: python examples/fetch_california.py   (first time only)
 """
 import argparse
@@ -15,7 +15,7 @@ import pandas as pd
 parser = argparse.ArgumentParser()
 parser.add_argument("--num_trees",   type=int,  default=50)
 parser.add_argument("--num_leaves",  type=int,  default=31)
-parser.add_argument("--rmse",        action="store_true")
+parser.add_argument("--error",       action="store_true")
 parser.add_argument("--importance",  action="store_true")
 args = parser.parse_args()
 
@@ -74,7 +74,7 @@ print(
 )
 
 # ── Per-iteration RMSE ─────────────────────────────────────────────────────────
-if args.rmse:
+if args.error:
     print(f"\n{'iter':<6}  {'rmse'}")
     print("-" * 18)
     for i, rmse in enumerate(rmse_per_iter, 1):

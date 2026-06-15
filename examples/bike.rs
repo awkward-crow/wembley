@@ -1,9 +1,9 @@
 /// UCI Bike Sharing (daily) — quantile regression at α=0.9 / 0.5 (median) / 0.1.
 ///
-/// Run:  cargo run --example bike --release [-- --shuffle --rmse --importance --importance-by-tree]
+/// Run:  cargo run --example bike --release [-- --shuffle --error --importance --importance-by-tree]
 ///
 /// --shuffle            Randomly permutes the data before the 80/20 split.
-/// --rmse               Print per-iteration train metric for each model.
+/// --error              Print per-iteration train metric for each model.
 /// --importance         Print feature importance (gain) after the median model.
 /// --importance-by-tree Print per-tree feature importance after the median model.
 ///
@@ -69,7 +69,7 @@ fn run_quantile(
     feature_names: &[String],
     config:        &Config,
     alpha:         f64,
-    show_rmse:          bool,
+    show_error:         bool,
     show_importance:    bool,
     show_importance_trees: bool,
 ) {
@@ -102,7 +102,7 @@ fn run_quantile(
         alpha, test_pinball, coverage * 100.0, alpha * 100.0,
     );
 
-    if show_rmse {
+    if show_error {
         println!("\n{:<6}  {}", "iter", format!("pinball(α={:.1})", alpha));
         println!("{}", "-".repeat(26));
         for (iter, pinball) in pinball_log.iter().enumerate() {
@@ -156,7 +156,7 @@ fn main() {
     let num_trees:  usize = parse_arg(&args, "num_trees",  200);
     let num_leaves: usize = parse_arg(&args, "num_leaves",  15);
     let shuffle_flag          = args.iter().any(|a| a == "--shuffle");
-    let show_rmse             = args.iter().any(|a| a == "--rmse");
+    let show_error            = args.iter().any(|a| a == "--error");
     let show_importance       = args.iter().any(|a| a == "--importance");
     let show_importance_trees = args.iter().any(|a| a == "--importance-by-tree");
 
@@ -186,7 +186,7 @@ fn main() {
         ..Config::default()
     };
 
-    run_quantile(train_rows, train_labels, test_rows, test_labels, &feature_names, &config, 0.9, show_rmse, false, false);
-    run_quantile(train_rows, train_labels, test_rows, test_labels, &feature_names, &config, 0.5, show_rmse, show_importance, show_importance_trees);
-    run_quantile(train_rows, train_labels, test_rows, test_labels, &feature_names, &config, 0.1, show_rmse, false, false);
+    run_quantile(train_rows, train_labels, test_rows, test_labels, &feature_names, &config, 0.9, show_error, false, false);
+    run_quantile(train_rows, train_labels, test_rows, test_labels, &feature_names, &config, 0.5, show_error, show_importance, show_importance_trees);
+    run_quantile(train_rows, train_labels, test_rows, test_labels, &feature_names, &config, 0.1, show_error, false, false);
 }
