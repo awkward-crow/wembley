@@ -1,10 +1,9 @@
-# wembley -- lightGBM in rust?!
+# wembley
 
-A from-scratch implementation of the core LightGBM algorithm in Rust, written by reading the
-original C++ source at `../light-gbm/LightGBM/`. The goal is to replicate the key speed
+A rust port of the gradient boosting machine library LightGBM. The goal is to replicate the key speed
 optimisations — histogram-based split finding, the histogram subtraction trick, and leaf-wise
 tree growth — in idiomatic Rust with Rayon parallelism, while supporting regression, binary
-classification, and quantile regression.
+classification and quantile regression.
 
 ## An example -- California Housing 
 
