@@ -249,7 +249,3 @@ implemented; only binary classification is supported.
 **Early stopping.** The GBDT loop does not yet monitor a validation metric and stop when it
 stops improving. The per-iteration callback provides all the data needed to implement this
 externally, but there is no built-in mechanism.
-
-
-
-### end
