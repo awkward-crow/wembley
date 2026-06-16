@@ -1,7 +1,12 @@
 [package]
-name = "lgbm"
+name = "wembley"
 version = "0.1.0"
 edition = "2021"
+description = "Histogram-based gradient boosting (LightGBM-style) in Rust: regression, binary classification, and quantile regression"
+repository = "https://github.com/awkward-crow/wembley"
+license = "MIT"
+keywords = ["gradient-boosting", "lightgbm", "machine-learning", "decision-tree", "quantile-regression"]
+categories = ["algorithms", "science"]
 
 [lib]
 name = "lgbm"
